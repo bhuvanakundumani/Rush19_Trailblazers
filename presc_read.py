@@ -7,7 +7,9 @@ import cv2
 import os
 import re
 import json
+import requests
 
+API_END_POINT = "http://4d3becb0.ngrok.io/api/bill_medicine_detail"
 
 
 def parse_func(text):
@@ -16,16 +18,18 @@ def parse_func(text):
 	:return:
 	"""
 	drug_dictionary = {}
+	drug_json = {}
 	drug_details = []
+	drug_json_details = []
 	# splitting doctor's , patient's info and prescription.
 	text_split = re.split('Rx',text)
 	non_prescription = text_split[0]
 	prescription = text_split[1]
 	# first string has Doctor and patient's info
-	print(" First string is", non_prescription)
+	#print(" First string is", non_prescription)
 	# second string has Doctor's prescription
 
-	print(" Second string is",prescription)
+	#print(" Second string is",prescription)
 
 	# splitting doctor's and patient's information present in text_split[0]
 	doc_patient_split = re.split("(?:Mr\.|Mrs\.)+ [a-zA-Z]+", text_split[0])
@@ -33,9 +37,10 @@ def parse_func(text):
 	doctor_details = doc_patient_split[0]
 	# printing the patient's and doctor's separate
 
-	print("doctor's info",doctor_details)
+	print("Doctor's info: \n",doctor_details)
 
-	print ("patient's info",patient_name)
+	print ("Patient's info: \n",patient_name)
+	print('')
 
 	# Splitting the medicines, dosage and number of days
 	drug_lines = re.split("\n",prescription)
@@ -44,12 +49,16 @@ def parse_func(text):
 	for line in drug_lines:
 		if line != '':
 			drug_info = line.strip()
-			print(drug_info)
+			#print(drug_info)
 			drug = re.search(r'^([a-zA-Z]+\s*[a-zA-Z]*\s*[a-zA-Z]*)',drug_info)
 			drug_dictionary['drug_name'] = drug.group()
+			drug_json['company_name'] = drug.group()
 
-			dosage = re.search('[0-9]+(\.[0-9]*)?(\s*)?(MG|ML|mg|ml)', drug_info)
+			dosage = re.search('[0-9]+(\.[0-9]*)?(\s*)(MG|ML|mg|ml)', drug_info)
 			drug_dictionary['dosage'] = dosage.group()
+
+
+			drug_json['dosage'] = re.sub('[\s+]', '', dosage.group()).lower()
 
 			times = re.search('\d-\d-\d',drug_info)
 			drug_dictionary['times']=times.group()
@@ -63,7 +72,7 @@ def parse_func(text):
 				c = re.search('-\d-',times_temp).group()
 				d = re.search('\d',c).group()
 				#print(d)
-			print(times_temp)
+			#print(times_temp)
 
 			total_times = int(a)+int(b)+int(d)
 			drug_dictionary['total_times'] = total_times
@@ -71,23 +80,43 @@ def parse_func(text):
 			count_of_days = re.search('\d+ (Days|days)',drug_info).group()
 			drug_dictionary['count_of_days']=count_of_days
 
-
 			num_in_count_of_days =re.search('\d+',count_of_days).group()
 			drug_dictionary['num_in_count_of_days'] = num_in_count_of_days
 
-			count_of_tablets = total_times * int(num_in_count_of_days)
-			drug_dictionary['count'] = count_of_tablets
+			if re.search('ml|ML', drug_dictionary['dosage']) != None:
 
+				drug_dictionary['count'] = 1
+				drug_json['count'] = 1
+
+			else:
+
+				drug_dictionary['count'] = total_times * int(num_in_count_of_days)
+				drug_json['count'] = total_times * int(num_in_count_of_days)
 
 			#print(drug_dictionary)
 			#print('appending it to list')
 			drug_details.append(drug_dictionary.copy())
+			drug_json_details.append(drug_json.copy())
 			#print('appended it to list')
 			#print('list is', drug_details)
 			#drug_info = re.split('^([a-zA-Z]+)',drug_info)
 	#print(drug_dictionary)
-	print(drug_details)
-	json_value = json.dumps(drug_details)
+	#print(drug_json_details)
+	json_value = json.dumps(drug_json_details)
+	#print("Drug data in json format: \n" , json_value)
+
+	json_dummy = [
+					 {
+					   "company_name": "imol",
+					   "dosage": "250mg",
+					   "count": 10
+					 },
+
+				]
+	print("Drug data in json format: \n" , json_dummy)
+
+	r = requests.post(url=API_END_POINT, json=json_dummy)
+	print(r.text)
 
 
 
